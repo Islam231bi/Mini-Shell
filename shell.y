@@ -11,13 +11,17 @@
  *
  */
 
-%token	<string_val> WORD
-
-%token 	NOTOKEN GREAT NEWLINE 
+// Yacc definitions
 
 %union	{
-		char   *string_val;
+		char  *string_val;
 	}
+
+%token	<string_val> WORD
+
+%token 	NOTOKEN GREAT NEWLINE SMALL SMALLSMALL GREATGREAT PIPE
+
+// C declarations
 
 %{
 extern "C" 
@@ -32,10 +36,13 @@ extern "C"
 
 %%
 
+
+// Grammar 
 goal:	
 	commands
 	;
 
+// non-terminal LHS
 commands: 
 	command
 	| commands command 
