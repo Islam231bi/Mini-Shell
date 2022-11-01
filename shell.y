@@ -52,7 +52,7 @@ command: simple_command
         ;
 
 simple_command:	
-	command_and_args iomodifier_opt_list NEWLINE {
+	command_and_args iomodifier_opt_list Ampersand NEWLINE {
 		printf("   Yacc: Execute command\n");
 		Command::_currentCommand.execute();
 	}
@@ -95,7 +95,7 @@ iomodifier_opt_list:
 	;
 
 iomodifier_opt:
-	GREAT WORD {
+	GREAT WORD | GREATGREAT WORD {
 		printf("   Yacc: insert output \"%s\"\n", $2);
 		Command::_currentCommand._outFile = $2;
 	}
@@ -105,7 +105,12 @@ iomodifier_opt:
 	}
 	| /* can be empty */ 
 	;
-
+Ampersand:
+	AMPERSAND {
+		Command::_currentCommand._background = 1;
+	}
+	|
+	;
 %%
 
 void
