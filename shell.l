@@ -39,10 +39,6 @@
 		return SMALL;
 	}
 
-"<<"	{
-		return SMALLSMALL;
-	}
-
 ">>"	{
 		return GREATGREAT;
 	}
@@ -51,8 +47,22 @@
 		return PIPE;
 	}
 
+
+">&"	{
+		return GREATAMPERSAND;
+	}
+
+
+">>&"	{
+		return GREATGREATAMPERSAND;
+	}
+
 "&"		{
 		return AMPERSAND;
+	}
+
+"*"		{
+		return WILDCARD;
 	}
 
 [^ \t\n][^ \t\n]*  {

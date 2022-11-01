@@ -19,7 +19,7 @@
 
 %token	<string_val> WORD
 
-%token 	NOTOKEN GREAT NEWLINE SMALL SMALLSMALL GREATGREAT PIPE AMPERSAND
+%token 	NOTOKEN GREAT NEWLINE SMALL GREATGREAT PIPE AMPERSAND WILDCARD GREATAMPERSAND GREATGREATAMPERSAND 
 
 // C declarations
 
@@ -52,11 +52,11 @@ command: simple_command
         ;
 
 simple_command:	
-	command_and_args iomodifier_opt NEWLINE {
+	command_and_args iomodifier_opt_list NEWLINE {
 		printf("   Yacc: Execute command\n");
 		Command::_currentCommand.execute();
 	}
-	| NEWLINE 
+	| NEWLINE
 	| error NEWLINE { yyerrok; }
 	;
 
@@ -89,10 +89,19 @@ command_word:
 	}
 	;
 
+iomodifier_opt_list:
+	iomodifier_opt_list iomodifier_opt
+	|
+	;
+
 iomodifier_opt:
 	GREAT WORD {
 		printf("   Yacc: insert output \"%s\"\n", $2);
 		Command::_currentCommand._outFile = $2;
+	}
+	| SMALL WORD{
+		printf("   Yacc: insert Input \"%s\"\n", $2);
+		Command::_currentCommand._inputFile = $2;
 	}
 	| /* can be empty */ 
 	;
