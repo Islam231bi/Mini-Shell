@@ -44,6 +44,7 @@ goal:
 
 
 // non-terminal LHS
+
 commands: 
 	command 
 	| commands command 
@@ -52,8 +53,8 @@ commands:
 command: simple_command
         ;
 
-simple_command:	
-	command_and_args iomodifier_opt_list Ampersand NEWLINE {
+simple_command:
+	pipeline iomodifier_opt_list ampersand NEWLINE {
 		printf("   Yacc: Execute command\n");
 		Command::_currentCommand.execute();
 	}
@@ -61,12 +62,22 @@ simple_command:
 	| error NEWLINE { yyerrok; }
 	;
 
-Ampersand:
+ampersand:
 	AMPERSAND {
 		Command::_currentCommand._background = 1;
 	}
-	|
+	|/*can be empty*/
 	;
+
+pipeline:
+	command_and_args pipe
+	| pipeline command_and_args pipe
+	| command_and_args
+	;
+
+pipe:
+	PIPE
+	|/*can be empty*/
 
 command_and_args:
 	command_word arg_list {
