@@ -42,9 +42,10 @@ goal:
 	commands
 	;
 
+
 // non-terminal LHS
 commands: 
-	command
+	command 
 	| commands command 
 	;
 
@@ -60,12 +61,20 @@ simple_command:
 	| error NEWLINE { yyerrok; }
 	;
 
+Ampersand:
+	AMPERSAND {
+		Command::_currentCommand._background = 1;
+	}
+	|
+	;
+
 command_and_args:
 	command_word arg_list {
 		Command::_currentCommand.
 			insertSimpleCommand( Command::_currentSimpleCommand );
 	}
 	;
+
 
 arg_list:
 	arg_list argument
@@ -90,27 +99,27 @@ command_word:
 	;
 
 iomodifier_opt_list:
-	iomodifier_opt_list iomodifier_opt
-	|
+	 iomodifier_opt
+	| iomodifier_opt_list iomodifier_opt
 	;
 
 iomodifier_opt:
-	GREAT WORD | GREATGREAT WORD {
+	GREAT WORD {
 		printf("   Yacc: insert output \"%s\"\n", $2);
 		Command::_currentCommand._outFile = $2;
 	}
+	|GREATGREAT WORD {
+		printf("   Yacc: insert output \"%s\"\n", $2);
+		Command::_currentCommand._outFile = $2;
+	}
+
 	| SMALL WORD{
 		printf("   Yacc: insert Input \"%s\"\n", $2);
 		Command::_currentCommand._inputFile = $2;
 	}
-	| /* can be empty */ 
+	|/*can be empty*/  
 	;
-Ampersand:
-	AMPERSAND {
-		Command::_currentCommand._background = 1;
-	}
-	|
-	;
+	
 %%
 
 void
