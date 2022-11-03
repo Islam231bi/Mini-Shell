@@ -70,14 +70,9 @@ ampersand:
 	;
 
 pipeline:
-	command_and_args pipe
-	| pipeline command_and_args pipe
+	pipeline PIPE command_and_args
 	| command_and_args
 	;
-
-pipe:
-	PIPE
-	|/*can be empty*/
 
 command_and_args:
 	command_word arg_list {
