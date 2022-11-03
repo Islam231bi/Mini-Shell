@@ -7,6 +7,9 @@
  *
  */
 
+/*
+ *first part (optional)
+ */
 %{
 
 #include <string.h>
@@ -14,6 +17,10 @@
 
 %}
 
+/*
+ *
+ * Second part
+ */
 %%
 
 \n 	{
@@ -26,6 +33,36 @@
 
 ">" 	{
 		return GREAT;
+	}
+
+"<"		{
+		return SMALL;
+	}
+
+">>"	{
+		return GREATGREAT;
+	}
+
+"|"		{
+		return PIPE;
+	}
+
+
+">&"	{
+		return GREATAMPERSAND;
+	}
+
+
+">>&"	{
+		return GREATGREATAMPERSAND;
+	}
+
+"&"		{
+		return AMPERSAND;
+	}
+
+"*"		{
+		return WILDCARD;
 	}
 
 [^ \t\n][^ \t\n]*  {
