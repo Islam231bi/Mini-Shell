@@ -21,6 +21,11 @@
 
 #include "command.h"
 
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
 using namespace std;
 
 SimpleCommand::SimpleCommand()
@@ -142,7 +147,7 @@ Command::execute()
 	}
 
 	// Print contents of Command data structure
-	print();
+	// print();
 
 	// File redirection
 	int defaultin = dup( 0 );
@@ -297,7 +302,9 @@ Command::prompt()
 	char *user = getenv("USER");
 	char *dist = getenv("DESKTOP_SESSION");
 	char *pwd = getenv("PWD");
-	printf("%s@%s-os:%s$ ", user, dist, pwd);
+	printf(ANSI_COLOR_GREEN	"%s@%s-os:"	ANSI_COLOR_RESET ,user,dist);
+	printf(ANSI_COLOR_BLUE	"%s"	ANSI_COLOR_RESET,pwd);
+	printf("$ ");
 	fflush(stdout);
 }
 
