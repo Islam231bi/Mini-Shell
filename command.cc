@@ -17,8 +17,11 @@
 #include <string.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <cstdlib>
 
 #include "command.h"
+
+using namespace std;
 
 SimpleCommand::SimpleCommand()
 {
@@ -94,10 +97,6 @@ Command:: clear()
 		free( _inputFile );
 	}
 
-	// if ( _errFile && (_outFile) ) {
-	// 	free( _errFile );
-	// }
-
 	_numberOfSimpleCommands = 0;
 	_outFile = 0;
 	_inputFile = 0;
@@ -143,7 +142,7 @@ Command::execute()
 	}
 
 	// Print contents of Command data structure
-	// print();
+	print();
 
 	// File redirection
 	int defaultin = dup( 0 );
@@ -154,97 +153,121 @@ Command::execute()
 	int outfd = -1;
 	int errfd = -1;
 
-	if (_currentCommand._outFile != 0){
-		if (_currentCommand._append == 1){
-			outfd = open( _currentCommand._outFile , O_CREAT|O_WRONLY|O_APPEND, 0666);
-		}
-		else{
-			outfd = open( _currentCommand._outFile ,O_CREAT|O_WRONLY|O_TRUNC, 0666);
-		}
-	
-		if ( outfd < 0 ) {
-			perror( "Error creating out file" );
-			exit( 2 );
-		}
-		// Redirect output to the created outfile instead off printing to stdout 
-		dup2( outfd, 1 );
-		close( outfd );
+	const auto cmd_size =  _currentCommand._numberOfSimpleCommands;
 
-		// Redirect input
-		dup2( defaultin, 0 );
+	// Array storing all pipes needed
+	int fdpipe[cmd_size][2];
+
+	// initializing pipes
+	for (auto i = 0 ; i < cmd_size ; i++){
+		if ( pipe( fdpipe[i]) == -1 ) {
+				perror( "Error creating pipe");
+				exit( 2 );
+		}
+	}
+
+	for (auto cmd = 0 ; cmd < cmd_size ; cmd++) {
+		if ( cmd == 0) {
+			if (_currentCommand._inputFile != 0) {
+				infd = open( _currentCommand._inputFile , O_RDWR, 0666);
+			
+				if ( infd < 0 ) {
+					perror( "Error reading from Input file" );
+					exit( 2 );
+				}
+				// Redirect input to the assigned input file instead off reading from stdin 
+				dup2( infd, 0 );
+				close( infd );
+			}
+
+			if (cmd_size > 1) {
+				// Redirect output to pipe
+				dup2( fdpipe[cmd][ 1 ], 1 );
+			}			
+		}
+
+		if (cmd == cmd_size -1) {
+			if (_currentCommand._outFile != 0){
+				if (_currentCommand._append == 1){
+					outfd = open( _currentCommand._outFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+				}
+				else{
+					outfd = open( _currentCommand._outFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+				}
+			
+				if ( outfd < 0 ) {
+					perror( "Error creating out file" );
+					exit( 2 );
+				}
+
+				// Redirect output to the created outfile instead off printing to stdout 
+				dup2( outfd, 1 );
+				close( outfd );
+			}
+
+			if (_currentCommand._errFile != 0){
+				// Open for appending
+				if (_currentCommand._append == 1){
+					errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+				}
+				// Open for overwriting
+				else{
+					errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+				}
+			
+				if ( errfd < 0 ) {
+					perror( "Error creating Error file" );
+					exit( 2 );
+				}
+				// Redirect error to the created error file instead off printing to stderr 
+				dup2( errfd, 2 );
+				close( errfd );
+			}
+
+			if (cmd_size > 1) {
+				// Redirect output to pipe
+				dup2( fdpipe[cmd - 1][ 0 ], 0 );
+			}
+		}
+
+		else{
+			// getting input from previous pipe
+			dup2( fdpipe[cmd - 1][ 0 ], 0 );
+
+			//redirecting output to pipe
+			dup2( fdpipe[cmd][1], 1);
+		}
 		
-		// Redirect output to file
-		dup2( outfd, 1 );
-
-		// Redirect err
-		dup2( defaulterr, 2 );
-
-	}
-
-	if (_currentCommand._inputFile != 0){
-		infd = open( _currentCommand._inputFile , O_RDWR, 0666);
-	
-		if ( infd < 0 ) {
-			perror( "Error reading from Input file" );
+		int pid = fork();
+		if ( pid == -1 ) {
+			perror( "Error forking\n");
 			exit( 2 );
 		}
-		// Redirect input to the assigned input file instead off reading from stdin 
-		dup2( infd, 0 );
-		close( infd );
+		if (pid == 0) {
 
-		// Redirect output
-		dup2( defaultout, 1 );
+			close(fdpipe[cmd][0]);
+			close(fdpipe[cmd][1]);
 
-		// Redirect err
-		dup2( defaulterr, 2 );
+			const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
 
-	}
+			// args array
+			char *args[size + 1];
+			args[size] = NULL;
 
-	if (_currentCommand._errFile != 0){
-		// Open for appending
-		if (_currentCommand._append == 1){
-			errfd = open( _currentCommand._errFile , O_CREAT|O_WRONLY|O_APPEND, 0666);
-		}
-		// Open for overwriting
-		else{
-			errfd = open( _currentCommand._errFile ,O_CREAT|O_WRONLY|O_TRUNC, 0666);
-		}
-	
-		if ( errfd < 0 ) {
-			perror( "Error creating Error file" );
+			for (auto i = 0 ; i < size ; i++){
+				args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
+			}
+
+			//execution
+			execvp(args[0],args);
+
+			perror( "Command Error: ");
 			exit( 2 );
-		}
-		// Redirect error to the created error file instead off printing to srderr 
-		dup2( errfd, 2 );
-		close( errfd );
+		}		
 
-		// Redirect input
-		dup2( defaultin, 0 );
-	
-		// Redirect err
-		dup2( errfd, 2 );
+		if (_currentCommand._background == 0)
+			waitpid( pid, 0, 0 );
 
-	}
-
-	int pid = fork();
-	if ( pid == -1 ) {
-		perror( "ls: fork\n");
-		exit( 2 );
-	}
-	if (pid == 0) {
-		//Child
-		const auto size = _currentCommand._currentSimpleCommand->_numberOfArguments;
-		char *args[size + 1];
-		args[size] = NULL;
-
-		for (auto i = 0 ; i < size ; i++){
-			args[i] = _currentCommand._currentSimpleCommand->_arguments[i];
-		}
-
-		execvp(args[0],args);
-
-		perror( "Command Error: ");
-		exit( 2 );
 	}
 
 	// Restore input, output, and error
@@ -254,28 +277,14 @@ Command::execute()
 	dup2( defaulterr, 2 );
 
 	// Close file descriptors that are not needed
-	close( outfd );
-	close( infd );
-	close( errfd );
+	
 	close( defaultin );
 	close( defaultout );
 	close( defaulterr );
 
-	if (_currentCommand._background == 0)
-		waitpid( pid, 0, 0 );
-	
-
-	
-	// Add execution here
-	// For every simple command fork a new process
-	// Setup i/o redirection
-	// and call exec
-
-
-
 	// Clear to prepare for next command
 	clear();
-	
+		
 	// Print new prompt
 	prompt();
 }
@@ -285,7 +294,10 @@ Command::execute()
 void
 Command::prompt()
 {
-	printf("myshell>");
+	char *user = getenv("USER");
+	char *dist = getenv("DESKTOP_SESSION");
+	char *pwd = getenv("PWD");
+	printf("%s@%s-os:%s$ ", user, dist, pwd);
 	fflush(stdout);
 }
 
@@ -301,4 +313,3 @@ main()
 	yyparse();
 	return 0;
 }
-
