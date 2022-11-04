@@ -58,6 +58,7 @@ Command::Command()
 	_inputFile = 0;
 	_errFile = 0;
 	_background = 0;
+	_append = 0;
 }
 
 void
@@ -102,6 +103,7 @@ Command:: clear()
 	_inputFile = 0;
 	_errFile = 0;
 	_background = 0;
+	_append = 0;
 }
 
 void
@@ -141,21 +143,27 @@ Command::execute()
 	}
 
 	// Print contents of Command data structure
-	print();
+	// print();
 
 	// File redirection
 	int defaultin = dup( 0 );
 	int defaultout = dup( 1 );
 	int defaulterr = dup( 2 );
+	
+	int infd = -1;
 	int outfd = -1;
-	int infd = -2;
-	int errfd = -3;
+	int errfd = -1;
 
 	if (_currentCommand._outFile != 0){
-		int outfd = creat( _currentCommand._outFile , 0666 );
+		if (_currentCommand._append == 1){
+			outfd = open( _currentCommand._outFile , O_CREAT|O_WRONLY|O_APPEND, 0666);
+		}
+		else{
+			outfd = open( _currentCommand._outFile ,O_CREAT|O_WRONLY|O_TRUNC, 0666);
+		}
 	
 		if ( outfd < 0 ) {
-			perror( "ls : create outfile" );
+			perror( "Error creating out file" );
 			exit( 2 );
 		}
 		// Redirect output to the created outfile instead off printing to stdout 
@@ -174,21 +182,18 @@ Command::execute()
 	}
 
 	if (_currentCommand._inputFile != 0){
-		int infd = creat( _currentCommand._inputFile , 0666 );
+		infd = open( _currentCommand._inputFile , O_RDWR, 0666);
 	
 		if ( infd < 0 ) {
-			perror( "ls : create Inputfile" );
+			perror( "Error reading from Input file" );
 			exit( 2 );
 		}
-		// Redirect input to the created inputfule instead off reading from stdin 
+		// Redirect input to the assigned input file instead off reading from stdin 
 		dup2( infd, 0 );
 		close( infd );
 
 		// Redirect output
 		dup2( defaultout, 1 );
-		
-		// Redirect input to file
-		dup2( infd, 0 );
 
 		// Redirect err
 		dup2( defaulterr, 2 );
@@ -196,10 +201,17 @@ Command::execute()
 	}
 
 	if (_currentCommand._errFile != 0){
-		int errfd = creat( _currentCommand._errFile , 0666 );
+		// Open for appending
+		if (_currentCommand._append == 1){
+			errfd = open( _currentCommand._errFile , O_CREAT|O_WRONLY|O_APPEND, 0666);
+		}
+		// Open for overwriting
+		else{
+			errfd = open( _currentCommand._errFile ,O_CREAT|O_WRONLY|O_TRUNC, 0666);
+		}
 	
 		if ( errfd < 0 ) {
-			perror( "ls : create Errorfile" );
+			perror( "Error creating Error file" );
 			exit( 2 );
 		}
 		// Redirect error to the created error file instead off printing to srderr 
@@ -234,7 +246,7 @@ Command::execute()
 
 		execvp(args[0],args);
 
-		perror( "ls: exec ls");
+		perror( "Command Error: ");
 		exit( 2 );
 	}
 
