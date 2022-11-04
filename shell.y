@@ -123,6 +123,18 @@ iomodifier_opt:
 		printf("   Yacc: insert Input \"%s\"\n", $2);
 		Command::_currentCommand._inputFile = $2;
 	}
+	|GREATGREATAMPERSAND WORD {
+		printf("   Yacc: insert output \"%s\"\n", $2);
+		printf("   Yacc: insert Error \"%s\"\n", $2);
+		Command::_currentCommand._outFile = $2;
+		Command::_currentCommand._errFile = $2;
+	}
+	|GREATAMPERSAND WORD {
+		printf("   Yacc: insert output \"%s\"\n", $2);
+		printf("   Yacc: insert Error \"%s\"\n", $2);
+		Command::_currentCommand._outFile = $2;
+		Command::_currentCommand._errFile = $2;
+	}
 	|/*can be empty*/  
 	;
 	

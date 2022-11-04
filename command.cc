@@ -16,6 +16,7 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #include "command.h"
 
@@ -142,10 +143,126 @@ Command::execute()
 	// Print contents of Command data structure
 	print();
 
+	// File redirection
+	int defaultin = dup( 0 );
+	int defaultout = dup( 1 );
+	int defaulterr = dup( 2 );
+	int outfd = -1;
+	int infd = -2;
+	int errfd = -3;
+
+	if (_currentCommand._outFile != 0){
+		int outfd = creat( _currentCommand._outFile , 0666 );
+	
+		if ( outfd < 0 ) {
+			perror( "ls : create outfile" );
+			exit( 2 );
+		}
+		// Redirect output to the created outfile instead off printing to stdout 
+		dup2( outfd, 1 );
+		close( outfd );
+
+		// Redirect input
+		dup2( defaultin, 0 );
+		
+		// Redirect output to file
+		dup2( outfd, 1 );
+
+		// Redirect err
+		dup2( defaulterr, 2 );
+
+	}
+
+	if (_currentCommand._inputFile != 0){
+		int infd = creat( _currentCommand._inputFile , 0666 );
+	
+		if ( infd < 0 ) {
+			perror( "ls : create Inputfile" );
+			exit( 2 );
+		}
+		// Redirect input to the created inputfule instead off reading from stdin 
+		dup2( infd, 0 );
+		close( infd );
+
+		// Redirect output
+		dup2( defaultout, 1 );
+		
+		// Redirect input to file
+		dup2( infd, 0 );
+
+		// Redirect err
+		dup2( defaulterr, 2 );
+
+	}
+
+	if (_currentCommand._errFile != 0){
+		int errfd = creat( _currentCommand._errFile , 0666 );
+	
+		if ( errfd < 0 ) {
+			perror( "ls : create Errorfile" );
+			exit( 2 );
+		}
+		// Redirect error to the created error file instead off printing to srderr 
+		dup2( errfd, 2 );
+		close( errfd );
+
+		// Redirect input
+		dup2( defaultin, 0 );
+		
+		// Redirect output to file
+		dup2( defaultout, 1 );
+
+		// Redirect err
+		dup2( errfd, 2 );
+
+	}
+
+	int pid = fork();
+	if ( pid == -1 ) {
+		perror( "ls: fork\n");
+		exit( 2 );
+	}
+	if (pid == 0) {
+		//Child
+		const auto size = _currentCommand._currentSimpleCommand->_numberOfArguments;
+		char *args[size + 1];
+		args[size] = NULL;
+
+		for (auto i = 0 ; i < size ; i++){
+			args[i] = _currentCommand._currentSimpleCommand->_arguments[i];
+		}
+
+		execvp(args[0],args);
+
+		perror( "ls: exec ls");
+		exit( 2 );
+	}
+
+	// Restore input, output, and error
+
+	dup2( defaultin, 0 );
+	dup2( defaultout, 1 );
+	dup2( defaulterr, 2 );
+
+	// Close file descriptors that are not needed
+	close( outfd );
+	close( infd );
+	close( errfd );
+	close( defaultin );
+	close( defaultout );
+	close( defaulterr );
+
+	if (_currentCommand._background == 0)
+		waitpid( pid, 0, 0 );
+	
+
+	
 	// Add execution here
 	// For every simple command fork a new process
 	// Setup i/o redirection
 	// and call exec
+
+
 
 	// Clear to prepare for next command
 	clear();

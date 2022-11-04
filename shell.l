@@ -48,12 +48,12 @@
 	}
 
 
-">&"	{
+"&>"	{
 		return GREATAMPERSAND;
 	}
 
 
-">>&"	{
+"&>>"	{
 		return GREATGREATAMPERSAND;
 	}
 
