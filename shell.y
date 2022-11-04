@@ -117,6 +117,7 @@ iomodifier_opt:
 	|GREATGREAT WORD {
 		printf("   Yacc: insert output \"%s\"\n", $2);
 		Command::_currentCommand._outFile = $2;
+		Command::_currentCommand._append = 1;
 	}
 
 	| SMALL WORD{
@@ -128,6 +129,7 @@ iomodifier_opt:
 		printf("   Yacc: insert Error \"%s\"\n", $2);
 		Command::_currentCommand._outFile = $2;
 		Command::_currentCommand._errFile = $2;
+		Command::_currentCommand._append = 1;
 	}
 	|GREATAMPERSAND WORD {
 		printf("   Yacc: insert output \"%s\"\n", $2);

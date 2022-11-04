@@ -94,9 +94,9 @@ Command:: clear()
 		free( _inputFile );
 	}
 
-	if ( _errFile ) {
-		free( _errFile );
-	}
+	// if ( _errFile && (_outFile) ) {
+	// 	free( _errFile );
+	// }
 
 	_numberOfSimpleCommands = 0;
 	_outFile = 0;
@@ -220,10 +220,7 @@ Command::execute()
 
 		// Redirect input
 		dup2( defaultin, 0 );
-		
-		// Redirect output to file
-		dup2( defaultout, 1 );
-
+	
 		// Redirect err
 		dup2( errfd, 2 );
 
