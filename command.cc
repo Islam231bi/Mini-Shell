@@ -28,6 +28,11 @@
 
 using namespace std;
 
+void handler(int sig)
+{
+    write(STDOUT_FILENO, "\n", 2);
+}
+
 SimpleCommand::SimpleCommand()
 {
 	// Creat available space for 5 arguments
@@ -316,7 +321,11 @@ int yyparse(void);
 int 
 main()
 {
-	Command::_currentCommand.prompt();
-	yyparse();
+	signal(SIGINT, handler);
+	while(1)
+	{
+		Command::_currentCommand.prompt();
+		yyparse();
+	}
 	return 0;
 }
