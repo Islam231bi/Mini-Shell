@@ -28,6 +28,12 @@
 
 using namespace std;
 
+void
+handler(int sig)
+{
+    write(STDOUT_FILENO, " ", 2);
+}
+
 SimpleCommand::SimpleCommand()
 {
 	// Creat available space for 5 arguments
@@ -159,12 +165,13 @@ Command::execute()
 	int errfd = -1;
 
 	const auto cmd_size =  _currentCommand._numberOfSimpleCommands;
+	const auto pipeline_size = cmd_size - 1;
 
 	// Array storing all pipes needed
-	int fdpipe[cmd_size][2];
+	int fdpipe[pipeline_size][2];
 
 	// initializing pipes
-	for (auto i = 0 ; i < cmd_size ; i++){
+	for (auto i = 0 ; i < pipeline_size - 1 ; i++){
 		if ( pipe( fdpipe[i]) == -1 ) {
 				perror( "Error creating pipe");
 				exit( 2 );
@@ -250,8 +257,9 @@ Command::execute()
 		}
 		if (pid == 0) {
 
-			close(fdpipe[cmd][0]);
-			close(fdpipe[cmd][1]);
+			close( defaultin );
+			close( defaultout );
+			close( defaulterr );
 
 			const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
 
@@ -287,6 +295,13 @@ Command::execute()
 	close( defaultout );
 	close( defaulterr );
 
+	//Closing all pipes
+
+	for (int i = 0 ; i < pipeline_size ; i++) {
+		close( fdpipe[i][0]);
+		close( fdpipe[i][1]);
+	}
+
 	// Clear to prepare for next command
 	clear();
 		
@@ -316,6 +331,7 @@ int yyparse(void);
 int 
 main()
 {
+	signal(SIGINT, handler);
 	Command::_currentCommand.prompt();
 	yyparse();
 	return 0;
