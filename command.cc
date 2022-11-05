@@ -153,7 +153,7 @@ Command::execute()
 	}
 
 	// Print contents of Command data structure
-	// print();
+	print();
 
 	// File redirection
 	int defaultin = dup( 0 );
@@ -182,6 +182,23 @@ Command::execute()
 		if(!(strcmp(_currentCommand._simpleCommands[cmd]->_arguments[0],"exit"))){
 			exit ( 2 );
 		}
+
+		if(!(strcmp(_currentCommand._simpleCommands[cmd]->_arguments[0],"cd"))){
+			int val = 0;
+			if (_currentCommand._simpleCommands[cmd]->_numberOfArguments == 1){
+				val = chdir(getenv("HOME"));
+			}
+			else{
+				val = chdir(_currentCommand._simpleCommands[cmd]->_arguments[1]);
+			}
+			if (val < 0){
+				perror("cd ");
+			}
+			clear();
+			prompt();
+			return;
+		}
+
 		if ( cmd == 0) {
 			if (_currentCommand._inputFile != 0) {
 				infd = open( _currentCommand._inputFile , O_RDWR, 0666);
@@ -263,6 +280,12 @@ Command::execute()
 			close( defaultin );
 			close( defaultout );
 			close( defaulterr );
+			close(fdpipe[cmd][0]);
+			close(fdpipe[cmd][1]);
+			if (cmd > 1){
+				close(fdpipe[cmd - 1][0]);
+				close(fdpipe[cmd - 1][1]);
+			}
 
 			const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
 
