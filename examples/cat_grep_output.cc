@@ -56,7 +56,7 @@ main(int argc, char **argv, char **envp)
 	}
 
 	pid_t pid;
-	for (int i = 0 ; i< 2 ; i++){
+	for (int i = 0 ; i< 3 ; i++){
 		pid = fork();
 		if(pid == 0){
 			if(i == 0){
@@ -66,6 +66,8 @@ main(int argc, char **argv, char **envp)
 				close( defaultin );
 				close(fdpipe[0][1]);
 				close(fdpipe[0][0]);
+				close(fdpipe[1][1]);
+				close(fdpipe[1][0]);
 
 				// You can use execvp() instead if the arguments are stored in an array
 				execlp(cat, cat, argv[1], (char *) 0);
@@ -76,23 +78,48 @@ main(int argc, char **argv, char **envp)
 			}
 			else if (i == 1){
 				dup2( fdpipe[ 0 ][ 0 ], 0);
-				dup2( defaultout, 1);
-				// int outfd = open( argv[3] ,O_CREAT|O_RDWR|O_APPEND, 0666);
+				dup2( fdpipe[1][1], 1);
+				// int outfd = open( argv[4] ,O_CREAT|O_RDWR|O_APPEND, 0666);
 				// if(outfd < 0){
 				// 	perror("error");
 				// 	exit(2);
 				// }
 				// dup2(outfd, 1);
 				// close(outfd);
-				dup2( defaulterr, 2);
 
-				close(defaultout);
-				close(fdpipe[0][0]);
 				close(fdpipe[0][1]);
-				close( defaulterr );
+				close(fdpipe[0][0]);
+				close(fdpipe[1][1]);
+				close(fdpipe[1][0]);
 
 				// You can use execvp() instead if the arguments are stored in an array
 				execlp(grep, grep , argv[2], (char *) 0);
+
+				// exec() is not suppose to return, something went wrong
+				perror( "cat_grep: exec grep");
+				exit( 2 );
+			}
+			else if (i == 2){
+				dup2( fdpipe[ 1 ][ 0 ], 0);
+				// dup2( defaultout, 1);
+				int outfd = open( argv[4] ,O_CREAT|O_RDWR|O_APPEND, 0666);
+				if(outfd < 0){
+					perror("error");
+					exit(2);
+				}
+				dup2(outfd, 1);
+				close(outfd);
+				dup2( defaulterr, 2);
+
+				// close(defaultout);
+				close(fdpipe[0][1]);
+				close(fdpipe[0][0]);
+				close(fdpipe[1][1]);
+				close(fdpipe[1][0]);
+				close( defaulterr );
+
+				// You can use execvp() instead if the arguments are stored in an array
+				execlp(grep, grep , argv[3], (char *) 0);
 
 				// exec() is not suppose to return, something went wrong
 				perror( "cat_grep: exec grep");
@@ -120,7 +147,7 @@ main(int argc, char **argv, char **envp)
 	close( defaultout );
 	close( defaulterr );
 
-	if(atoi(argv[4]) == 0)
+	if(atoi(argv[5]) == 0)
 		waitpid(pid, 0, 0);
 	exit( 2 );
 }
