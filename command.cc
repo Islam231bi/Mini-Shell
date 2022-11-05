@@ -18,6 +18,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <cstdlib>
+#include <time.h>
 
 #include "command.h"
 
@@ -164,6 +165,8 @@ Command::execute()
 	int outfd = -1;
 	int errfd = -1;
 
+	pid_t pid;
+
 	const auto cmd_size =  _currentCommand._numberOfSimpleCommands;
 	const auto pipeline_size = cmd_size - 1;
 
@@ -179,6 +182,7 @@ Command::execute()
 	}
 
 	for (auto cmd = 0 ; cmd < cmd_size ; cmd++) {
+
 		if(!(strcmp(_currentCommand._simpleCommands[cmd]->_arguments[0],"exit"))){
 			exit ( 2 );
 		}
@@ -199,114 +203,191 @@ Command::execute()
 			return;
 		}
 
-		if ( cmd == 0) {
-			if (_currentCommand._inputFile != 0) {
-				infd = open( _currentCommand._inputFile , O_RDWR, 0666);
-			
-				if ( infd < 0 ) {
-					perror( "Error reading from Input file" );
-					exit( 2 );
+		pid = fork();
+		if(pid == 0) {
+			// First command
+			if (cmd == 0){
+				if (_currentCommand._inputFile != 0) {
+					infd = open( _currentCommand._inputFile , O_RDWR, 0666);
+				
+					if ( infd < 0 ) {
+						perror( "Error reading from Input file" );
+						exit( 2 );
+					}
+					// Redirect input to the assigned input file instead off reading from stdin 
+					dup2( infd, 0 );
+					close( infd );
 				}
-				// Redirect input to the assigned input file instead off reading from stdin 
-				dup2( infd, 0 );
-				close( infd );
+
+				if (cmd_size > 1) {
+					// Redirect output to pipe
+					dup2( fdpipe[cmd][ 1 ], 1 );
+				}
+				
+				else if (cmd_size == 1){
+					if (_currentCommand._outFile != 0){
+						if (_currentCommand._append == 1){
+							outfd = open( _currentCommand._outFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+						}
+						else{
+							outfd = open( _currentCommand._outFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+						}
+					
+						if ( outfd < 0 ) {
+							perror( "Error creating out file" );
+							exit( 2 );
+						}
+
+						// Redirect output to the created outfile instead off printing to stdout 
+						dup2( outfd, 1 );
+						close( outfd );
+					}
+
+					if (_currentCommand._errFile != 0){
+						// Open for appending
+						if (_currentCommand._append == 1){
+							errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+						}
+						// Open for overwriting
+						else{
+							errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+						}
+					
+						if ( errfd < 0 ) {
+							perror( "Error creating Error file" );
+							exit( 2 );
+						}
+						// Redirect error to the created error file instead off printing to stderr 
+						dup2( errfd, 2 );
+						close( errfd );
+					}
+				}
+
+				for (int i = 0 ; i < pipeline_size ; i++) {
+					close( fdpipe[i][0]);
+					close( fdpipe[i][1]);
+				}
+
+				const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
+
+				// args array
+				char *args[size + 1];
+				args[size] = NULL;
+
+				for (auto i = 0 ; i < size ; i++){
+					args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
+				}
+
+				//execution
+				execvp(args[0],args);
+
+				perror( "Command Error: ");
+				exit( 2 );
 			}
 
-			if (cmd_size > 1) {
-				// Redirect output to pipe
-				dup2( fdpipe[cmd][ 1 ], 1 );
-			}			
-		}
+			else if( (cmd == cmd_size - 1) && (cmd > 0)){
+				if (_currentCommand._outFile != 0){
+					if (_currentCommand._append == 1){
+						outfd = open( _currentCommand._outFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+					}
+					else{
+						outfd = open( _currentCommand._outFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+					}
+				
+					if ( outfd < 0 ) {
+						perror( "Error creating out file" );
+						exit( 2 );
+					}
 
-		if (cmd == cmd_size -1) {
-			if (_currentCommand._outFile != 0){
-				if (_currentCommand._append == 1){
-					outfd = open( _currentCommand._outFile , O_CREAT|O_RDWR|O_APPEND, 0666);
-				}
-				else{
-					outfd = open( _currentCommand._outFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
-				}
-			
-				if ( outfd < 0 ) {
-					perror( "Error creating out file" );
-					exit( 2 );
+					// Redirect output to the created outfile instead off printing to stdout 
+					dup2( outfd, 1 );
+					close( outfd );
 				}
 
-				// Redirect output to the created outfile instead off printing to stdout 
-				dup2( outfd, 1 );
-				close( outfd );
-			}
+				if (_currentCommand._errFile != 0){
+					// Open for appending
+					if (_currentCommand._append == 1){
+						errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+					}
+					// Open for overwriting
+					else{
+						errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+					}
+				
+					if ( errfd < 0 ) {
+						perror( "Error creating Error file" );
+						exit( 2 );
+					}
+					// Redirect error to the created error file instead off printing to stderr 
+					dup2( errfd, 2 );
+					close( errfd );
+				}
 
-			if (_currentCommand._errFile != 0){
-				// Open for appending
-				if (_currentCommand._append == 1){
-					errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
-				}
-				// Open for overwriting
-				else{
-					errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
-				}
-			
-				if ( errfd < 0 ) {
-					perror( "Error creating Error file" );
-					exit( 2 );
-				}
-				// Redirect error to the created error file instead off printing to stderr 
-				dup2( errfd, 2 );
-				close( errfd );
-			}
+				// close(defaultout);
+				// close(defaulterr);
 
-			if (cmd_size > 1) {
-				// Redirect output to pipe
+				// Getting input from pipe
 				dup2( fdpipe[cmd - 1][ 0 ], 0 );
+
+				// close( fdpipe[cmd - 1][0]);
+				for (int i = 0 ; i < pipeline_size ; i++) {
+					close( fdpipe[i][0]);
+					close( fdpipe[i][1]);
+				}
+
+				const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
+
+				// args array
+				char *args[size + 1];
+				args[size] = NULL;
+
+				for (auto i = 0 ; i < size ; i++){
+					args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
+				}
+
+				//execution
+				execvp(args[0],args);
+
+				perror( "Command Error: ");
+				exit( 2 );
+			}
+
+			else if ( cmd > 0 && cmd < cmd_size -1 ) {
+				// getting input from previous pipe
+				dup2( fdpipe[cmd - 1][ 0 ], 0 );
+
+				//redirecting output to pipe
+				dup2( fdpipe[cmd][1], 1);
+
+
+				for (int i = 0 ; i < pipeline_size ; i++) {
+					close( fdpipe[i][0]);
+					close( fdpipe[i][1]);
+				}
+
+				const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
+
+				// args array
+				char *args[size + 1];
+				args[size] = NULL;
+
+				for (auto i = 0 ; i < size ; i++){
+					args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
+				}
+
+				//execution
+				execvp(args[0],args);
+
+				perror( "Command Error: ");
+				exit( 2 );
+
 			}
 		}
 
-		else{
-			// getting input from previous pipe
-			dup2( fdpipe[cmd - 1][ 0 ], 0 );
-
-			//redirecting output to pipe
-			dup2( fdpipe[cmd][1], 1);
+		else if (pid < 0) {
+			perror("Error execution");
+			exit(2);
 		}
-		
-		int pid = fork();
-		if ( pid == -1 ) {
-			perror( "Error forking\n");
-			exit( 2 );
-		}
-		if (pid == 0) {
-
-			close( defaultin );
-			close( defaultout );
-			close( defaulterr );
-			close(fdpipe[cmd][0]);
-			close(fdpipe[cmd][1]);
-			if (cmd > 1){
-				close(fdpipe[cmd - 1][0]);
-				close(fdpipe[cmd - 1][1]);
-			}
-
-			const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
-
-			// args array
-			char *args[size + 1];
-			args[size] = NULL;
-
-			for (auto i = 0 ; i < size ; i++){
-				args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
-			}
-
-			//execution
-			execvp(args[0],args);
-
-			perror( "Command Error: ");
-			exit( 2 );
-		}		
-
-		if (_currentCommand._background == 0)
-			waitpid( pid, 0, 0 );
-
 	}
 
 	// Restore input, output, and error
@@ -315,12 +396,6 @@ Command::execute()
 	dup2( defaultout, 1 );
 	dup2( defaulterr, 2 );
 
-	// Close file descriptors that are not needed
-	
-	close( defaultin );
-	close( defaultout );
-	close( defaulterr );
-
 	//Closing all pipes
 
 	for (int i = 0 ; i < pipeline_size ; i++) {
@@ -328,9 +403,19 @@ Command::execute()
 		close( fdpipe[i][1]);
 	}
 
+	// Close file descriptors that are not needed
+	
+	close( defaultin );
+	close( defaultout );
+	close( defaulterr );
+
+	// wait for last process to end
+	if(_currentCommand._background == 0)
+		waitpid(pid , 0 , 0);
+
 	// Clear to prepare for next command
 	clear();
-		
+
 	// Print new prompt
 	prompt();
 }
@@ -356,10 +441,27 @@ SimpleCommand * Command::_currentSimpleCommand;
 
 int yyparse(void);
 
+void child_die(int sig2)
+{
+	
+	time_t t = time(NULL);
+	FILE *file;
+
+	file = fopen("log.txt", "a");
+	if (file == NULL)
+	{
+		printf("Error!");
+		exit(1);
+	}
+	fprintf(file, "Child terminated @ %s", ctime(&t));
+	fclose(file);
+}
+
 int 
 main()
 {
 	signal(SIGINT, handler);
+	signal(SIGCHLD, child_die);
 	Command::_currentCommand.prompt();
 	yyparse();
 	return 0;
