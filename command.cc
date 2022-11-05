@@ -153,7 +153,7 @@ Command::execute()
 	}
 
 	// Print contents of Command data structure
-	print();
+	// print();
 
 	// File redirection
 	int defaultin = dup( 0 );
@@ -342,9 +342,11 @@ Command::prompt()
 {
 	char *user = getenv("USER");
 	char *dist = getenv("DESKTOP_SESSION");
-	char *pwd = getenv("PWD");
+	char cwd[1000];
+   	getcwd(cwd, sizeof(cwd)); 
+
 	printf(ANSI_COLOR_GREEN	"%s@%s-os:"	ANSI_COLOR_RESET ,user,dist);
-	printf(ANSI_COLOR_BLUE	"%s"	ANSI_COLOR_RESET,pwd);
+	printf(ANSI_COLOR_BLUE	"%s"	ANSI_COLOR_RESET,cwd);
 	printf("$ ");
 	fflush(stdout);
 }
