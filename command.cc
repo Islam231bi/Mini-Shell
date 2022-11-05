@@ -179,6 +179,9 @@ Command::execute()
 	}
 
 	for (auto cmd = 0 ; cmd < cmd_size ; cmd++) {
+		if(!(strcmp(_currentCommand._simpleCommands[cmd]->_arguments[0],"exit"))){
+			exit ( 2 );
+		}
 		if ( cmd == 0) {
 			if (_currentCommand._inputFile != 0) {
 				infd = open( _currentCommand._inputFile , O_RDWR, 0666);
