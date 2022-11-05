@@ -29,11 +29,6 @@
 
 using namespace std;
 
-void
-handler(int sig)
-{
-    write(STDOUT_FILENO, " ", 2);
-}
 
 SimpleCommand::SimpleCommand()
 {
@@ -161,24 +156,44 @@ Command::execute()
 	int defaultout = dup( 1 );
 	int defaulterr = dup( 2 );
 	
-	int infd = -1;
-	int outfd = -1;
-	int errfd = -1;
+	int infd ,outfd, errfd;
 
 	pid_t pid;
 
 	const auto cmd_size =  _currentCommand._numberOfSimpleCommands;
-	const auto pipeline_size = cmd_size - 1;
 
-	// Array storing all pipes needed
-	int fdpipe[pipeline_size][2];
-
-	// initializing pipes
-	for (auto i = 0 ; i < pipeline_size - 1 ; i++){
-		if ( pipe( fdpipe[i]) == -1 ) {
-				perror( "Error creating pipe");
-				exit( 2 );
+	if (_currentCommand._inputFile != 0) {
+		infd = open( _currentCommand._inputFile , O_RDWR, 0666);
+	
+		if ( infd < 0 ) {
+			perror( "Error reading from Input file" );
+			exit( 2 );
 		}
+	}
+
+	else if (_currentCommand._inputFile == 0) {
+		infd = dup(defaultin);
+	}
+
+	if (_currentCommand._errFile != 0){
+
+		// Open for appending
+		if (_currentCommand._append == 1){
+			errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+		}
+		// Open for overwriting
+		else{
+			errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+		}
+	
+		if ( errfd < 0 ) {
+			perror( "Error creating Error file" );
+			exit( 2 );
+		}
+	}
+
+	else if ( _currentCommand._errFile == 0 ) {
+	    errfd = dup(defaulterr);
 	}
 
 	for (auto cmd = 0 ; cmd < cmd_size ; cmd++) {
@@ -202,186 +217,81 @@ Command::execute()
 			prompt();
 			return;
 		}
+		
+	    dup2( infd, 0 );
+	    dup2( errfd, 2 );
+	    close( infd );
+	    
+	    // Last command
+	    if(cmd == cmd_size - 1)  {
+			if (_currentCommand._outFile != 0){
+				if (_currentCommand._append == 1){
+					outfd = open( _currentCommand._outFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+				}
+				else{
+					outfd = open( _currentCommand._outFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+				}
+			
+				if ( outfd < 0 ) {
+					perror( "Error creating out file" );
+					exit( 2 );
+				}
+			}
+
+			else if (_currentCommand._errFile != 0){
+				// Open for appending
+				if (_currentCommand._append == 1){
+					errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
+				}
+				// Open for overwriting
+				else{
+					errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
+				}
+			
+				if ( errfd < 0 ) {
+					perror( "Error creating Error file" );
+					exit( 2 );
+				}
+			}
+			
+			else {
+		    	outfd = dup(defaultout);
+			}
+	    }
+
+		// Not last command
+	    else {
+			//create pipe
+			int fdpipe[ 2 ];
+
+			pipe( fdpipe );
+
+			outfd = fdpipe[ 1 ];
+			infd = fdpipe[ 0 ];
+
+		}
+
+		dup2(outfd,1);
+		close(outfd);
 
 		pid = fork();
 		if(pid == 0) {
-			// First command
-			if (cmd == 0){
-				if (_currentCommand._inputFile != 0) {
-					infd = open( _currentCommand._inputFile , O_RDWR, 0666);
-				
-					if ( infd < 0 ) {
-						perror( "Error reading from Input file" );
-						exit( 2 );
-					}
-					// Redirect input to the assigned input file instead off reading from stdin 
-					dup2( infd, 0 );
-					close( infd );
-				}
 
-				if (cmd_size > 1) {
-					// Redirect output to pipe
-					dup2( fdpipe[cmd][ 1 ], 1 );
-				}
-				
-				else if (cmd_size == 1){
-					if (_currentCommand._outFile != 0){
-						if (_currentCommand._append == 1){
-							outfd = open( _currentCommand._outFile , O_CREAT|O_RDWR|O_APPEND, 0666);
-						}
-						else{
-							outfd = open( _currentCommand._outFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
-						}
-					
-						if ( outfd < 0 ) {
-							perror( "Error creating out file" );
-							exit( 2 );
-						}
+			const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
 
-						// Redirect output to the created outfile instead off printing to stdout 
-						dup2( outfd, 1 );
-						close( outfd );
-					}
+			// args array
+			char *args[ size + 1 ];
+			args[ size ] = NULL;
 
-					if (_currentCommand._errFile != 0){
-						// Open for appending
-						if (_currentCommand._append == 1){
-							errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
-						}
-						// Open for overwriting
-						else{
-							errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
-						}
-					
-						if ( errfd < 0 ) {
-							perror( "Error creating Error file" );
-							exit( 2 );
-						}
-						// Redirect error to the created error file instead off printing to stderr 
-						dup2( errfd, 2 );
-						close( errfd );
-					}
-				}
-
-				for (int i = 0 ; i < pipeline_size ; i++) {
-					close( fdpipe[i][0]);
-					close( fdpipe[i][1]);
-				}
-
-				const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
-
-				// args array
-				char *args[size + 1];
-				args[size] = NULL;
-
-				for (auto i = 0 ; i < size ; i++){
-					args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
-				}
-
-				//execution
-				execvp(args[0],args);
-
-				perror( "Command Error: ");
-				exit( 2 );
+			for (auto i = 0 ; i < size ; i++){
+				args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
 			}
 
-			else if( (cmd == cmd_size - 1) && (cmd > 0)){
-				if (_currentCommand._outFile != 0){
-					if (_currentCommand._append == 1){
-						outfd = open( _currentCommand._outFile , O_CREAT|O_RDWR|O_APPEND, 0666);
-					}
-					else{
-						outfd = open( _currentCommand._outFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
-					}
-				
-					if ( outfd < 0 ) {
-						perror( "Error creating out file" );
-						exit( 2 );
-					}
+			//execution
+			execvp(args[0],args);
 
-					// Redirect output to the created outfile instead off printing to stdout 
-					dup2( outfd, 1 );
-					close( outfd );
-				}
-
-				if (_currentCommand._errFile != 0){
-					// Open for appending
-					if (_currentCommand._append == 1){
-						errfd = open( _currentCommand._errFile , O_CREAT|O_RDWR|O_APPEND, 0666);
-					}
-					// Open for overwriting
-					else{
-						errfd = open( _currentCommand._errFile ,O_CREAT|O_RDWR|O_TRUNC, 0666);
-					}
-				
-					if ( errfd < 0 ) {
-						perror( "Error creating Error file" );
-						exit( 2 );
-					}
-					// Redirect error to the created error file instead off printing to stderr 
-					dup2( errfd, 2 );
-					close( errfd );
-				}
-
-				// close(defaultout);
-				// close(defaulterr);
-
-				// Getting input from pipe
-				dup2( fdpipe[cmd - 1][ 0 ], 0 );
-
-				// close( fdpipe[cmd - 1][0]);
-				for (int i = 0 ; i < pipeline_size ; i++) {
-					close( fdpipe[i][0]);
-					close( fdpipe[i][1]);
-				}
-
-				const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
-
-				// args array
-				char *args[size + 1];
-				args[size] = NULL;
-
-				for (auto i = 0 ; i < size ; i++){
-					args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
-				}
-
-				//execution
-				execvp(args[0],args);
-
-				perror( "Command Error: ");
-				exit( 2 );
-			}
-
-			else if ( cmd > 0 && cmd < cmd_size -1 ) {
-				// getting input from previous pipe
-				dup2( fdpipe[cmd - 1][ 0 ], 0 );
-
-				//redirecting output to pipe
-				dup2( fdpipe[cmd][1], 1);
-
-
-				for (int i = 0 ; i < pipeline_size ; i++) {
-					close( fdpipe[i][0]);
-					close( fdpipe[i][1]);
-				}
-
-				const auto size = _currentCommand._simpleCommands[cmd]->_numberOfArguments;
-
-				// args array
-				char *args[size + 1];
-				args[size] = NULL;
-
-				for (auto i = 0 ; i < size ; i++){
-					args[i] = _currentCommand._simpleCommands[cmd]->_arguments[i];
-				}
-
-				//execution
-				execvp(args[0],args);
-
-				perror( "Command Error: ");
-				exit( 2 );
-
-			}
+			perror( "Command Error: ");
+			exit( 2 );
 		}
 
 		else if (pid < 0) {
@@ -396,12 +306,6 @@ Command::execute()
 	dup2( defaultout, 1 );
 	dup2( defaulterr, 2 );
 
-	//Closing all pipes
-
-	for (int i = 0 ; i < pipeline_size ; i++) {
-		close( fdpipe[i][0]);
-		close( fdpipe[i][1]);
-	}
 
 	// Close file descriptors that are not needed
 	
@@ -441,7 +345,13 @@ SimpleCommand * Command::_currentSimpleCommand;
 
 int yyparse(void);
 
-void child_die(int sig2)
+void
+handler(int sigint)
+{
+    write(STDOUT_FILENO, " ", 2);
+}
+
+void child_die(int sigchild)
 {
 	
 	time_t t = time(NULL);
