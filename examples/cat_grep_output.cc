@@ -47,102 +47,63 @@ main(int argc, char **argv, char **envp)
 	// Conceptually, a pipe is a connection between two processes, 
 	// such that the standard output from one process becomes the standard input of the other process.
 	// so if a process writes to fdpipe[1] process be can read from fdpipe[0] 
-	int fdpipe[2];
-	if ( pipe(fdpipe) == -1) {
-		perror( "cat_grep: pipe");
-		exit( 2 );
+	int fdpipe[2][2];
+	for(int i = 0 ; i < 2 ; i++){
+		if ( pipe(fdpipe[i]) == -1) {
+			perror( "cat_grep: pipe");
+			exit( 2 );
+		}
 	}
 
-	// Redirect input
-	dup2( defaultin, 0 );
-	
-	// Redirect output to pipe
-	dup2( fdpipe[ 1 ], 1 );
+	pid_t pid;
+	for (int i = 0 ; i< 2 ; i++){
+		pid = fork();
+		if(pid == 0){
+			if(i == 0){
+				dup2( fdpipe[ 0 ][ 1 ], 1 );
+				dup2( defaultin, 0);
 
-	// Redirect err
-	dup2( defaulterr, 2 );
+				close( defaultin );
+				close(fdpipe[0][1]);
+				close(fdpipe[0][0]);
 
-	// Create new process for "cat"
-	int pid = fork();
-	if ( pid == -1 ) {
-		perror( "cat_grep: fork\n");
-		exit( 2 );
+				// You can use execvp() instead if the arguments are stored in an array
+				execlp(cat, cat, argv[1], (char *) 0);
+
+				// exec() is not suppose to return, something went wrong
+				perror( "cat_grep: exec cat");
+				exit( 2 );
+			}
+			else if (i == 1){
+				dup2( fdpipe[ 0 ][ 0 ], 0);
+				dup2( defaultout, 1);
+				// int outfd = open( argv[3] ,O_CREAT|O_RDWR|O_APPEND, 0666);
+				// if(outfd < 0){
+				// 	perror("error");
+				// 	exit(2);
+				// }
+				// dup2(outfd, 1);
+				// close(outfd);
+				dup2( defaulterr, 2);
+
+				close(defaultout);
+				close(fdpipe[0][0]);
+				close(fdpipe[0][1]);
+				close( defaulterr );
+
+				// You can use execvp() instead if the arguments are stored in an array
+				execlp(grep, grep , argv[2], (char *) 0);
+
+				// exec() is not suppose to return, something went wrong
+				perror( "cat_grep: exec grep");
+				exit( 2 );
+			}
+		}
+		else if (pid < 0){
+			perror("error");
+			exit(2);
+		}
 	}
-
-	if (pid == 0) {
-		//Child
-		
-		// close file descriptors that are not needed
-		close(fdpipe[0]);
-		close(fdpipe[1]);
-		close( defaultin );
-		close( defaultout );
-		close( defaulterr );
-
-		// You can use execvp() instead if the arguments are stored in an array
-		execlp(cat, cat, argv[1], (char *) 0);
-
-		// exec() is not suppose to return, something went wrong
-		perror( "cat_grep: exec cat");
-		exit( 2 );
-	}
-
-	//////////////////  grep //////////////////////////
-
-	// Input:    pipe
-	// Output:   outfile
-	// Error:    defaulterr
-
-	// Redirect input.
-	dup2( fdpipe[0], 0);
-
-	//////////////////////////////////////////////////////////////////////////////////////////
-	////////////////// THIS PART IS DIFFERENT FROM THE cat_grep.cc EXAMPLE ///////////////////
-	//////////////////////////////////////////////////////////////////////////////////////////
-	// Create file descriptor 
-	int outfd = creat( argv[ 3 ], 0666 );
-
-	if ( outfd < 0 ) {
-		perror( "cat_grep: creat outfile" );
-		exit( 2 );
-	}
-	// Redirect output to the created utfile instead off printing to stdout 
-	dup2( outfd, 1 );
-	close( outfd );
-
-	//////////////////////////////////////////////////////////////////////////////////////////
-	////////////////// THIS PART IS DIFFERENT FROM THE cat_grep.cc EXAMPLE ///////////////////
-	//////////////////////////////////////////////////////////////////////////////////////////
-
-	// Redirect err
-	dup2( defaulterr, 2 );
-
-
-	pid = fork();
-	if (pid == -1 ) {
-		perror( "cat_grep: fork");
-		exit( 2 );
-	}
-	
-	if (pid == 0) {
-		//Child
-
-		// close file descriptors that are not needed
-		close(fdpipe[0]);
-		close(fdpipe[1]);
-		close( defaultin );
-		close( defaultout );
-		close( defaulterr );
-		
-		// You can use execvp() instead if the arguments are stored in an array
-		execlp(grep, grep , argv[2], (char *) 0);
-
-		// exec() is not suppose to return, something went wrong
-		perror( "cat_grep: exec grep");
-		exit( 2 );
-
-	}
-
 	// Restore input, output, and error
 
 	dup2( defaultin, 0 );
@@ -150,14 +111,16 @@ main(int argc, char **argv, char **envp)
 	dup2( defaulterr, 2 );
 
 	// Close file descriptors that are not needed
-	close(fdpipe[0]);
-	close(fdpipe[1]);
+	close(fdpipe[0][0]);
+	close(fdpipe[0][1]);
+	close(fdpipe[1][0]);
+	close(fdpipe[1][1]);
+	
 	close( defaultin );
 	close( defaultout );
 	close( defaulterr );
 
-	// Wait for last process in the pipe line
-	waitpid( pid, 0, 0 );
-
+	if(atoi(argv[4]) == 0)
+		waitpid(pid, 0, 0);
 	exit( 2 );
 }
