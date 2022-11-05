@@ -28,9 +28,25 @@
 
 using namespace std;
 
-void handler(int sig)
+void handler1(int sig1)
 {
-    write(STDOUT_FILENO, "\n", 2);
+	write(STDOUT_FILENO, "\n", 2);
+}
+
+void handler2(int sig2)
+{
+
+	time_t t = time(NULL);
+	FILE *file;
+
+	file = fopen("login.txt", "a");
+	if (file == NULL)
+	{
+		printf("Error!");
+		exit(1);
+	}
+	fprintf(file, "%s", ctime(&t));
+	fclose(file);
 }
 
 SimpleCommand::SimpleCommand()
@@ -321,11 +337,10 @@ int yyparse(void);
 int 
 main()
 {
-	signal(SIGINT, handler);
-	while(1)
-	{
-		Command::_currentCommand.prompt();
-		yyparse();
-	}
+	signal(SIGINT, handler1);
+	signal(SIGCHLD, handler2);
+	Command::_currentCommand.prompt();
+	yyparse();
+	
 	return 0;
 }
